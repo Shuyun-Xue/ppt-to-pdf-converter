@@ -99,7 +99,7 @@ def render_shape(shape, draw, offset_x=0, offset_y=0):
                 draw.rectangle(
                     [offset_x + shape.left, offset_y + shape.top,
                      offset_x + shape.left + shape.width,
-                     offset_y + shape.top + shape.height],
+                     offset_x + shape.top + shape.height],
                     outline='black'
                 )
     except Exception as e:
@@ -136,14 +136,12 @@ def convert_ppt_to_pdf(input_file_path, compression_quality='medium'):
             prs = Presentation(input_file_path)
             
             # 创建PDF文档
-            pdf = FPDF()
+            pdf = FPDF(orientation='L' if prs.slide_width > prs.slide_height else 'P')
             
-            # 设置PDF页面大小为PPT大小
-            first_slide = prs.slides[0] if prs.slides else None
-            if first_slide:
-                width = Inches(prs.slide_width).inches * 25.4  # 转换为毫米
-                height = Inches(prs.slide_height).inches * 25.4
-                pdf.set_page_size((width, height))
+            # 设置PDF页面大小
+            width_mm = Inches(prs.slide_width).inches * 25.4  # 转换为毫米
+            height_mm = Inches(prs.slide_height).inches * 25.4
+            pdf.add_page(format=(width_mm, height_mm))
             
             # 创建进度条
             progress_text = "转换进度"
@@ -163,7 +161,8 @@ def convert_ppt_to_pdf(input_file_path, compression_quality='medium'):
                 img.save(img_path, 'PNG', optimize=True)
                 
                 # 添加到PDF
-                pdf.add_page()
+                if i > 0:  # 第一页已经在设置页面大小时添加了
+                    pdf.add_page(format=(width_mm, height_mm))
                 pdf.image(img_path, x=0, y=0, w=pdf.w, h=pdf.h)
                 
                 # 更新进度
