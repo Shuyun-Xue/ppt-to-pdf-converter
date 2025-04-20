@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import tempfile
 from pptx import Presentation
+from pptx.util import Inches
 from fpdf import FPDF
 from PIL import Image, ImageDraw
 import io
@@ -65,9 +66,9 @@ def render_shape(shape, draw, offset_x=0, offset_y=0):
 
 def convert_slide_to_image(slide):
     """将PPT幻灯片转换为图像"""
-    # 获取幻灯片尺寸（转换EMU到像素）
-    width = int(slide.shapes.width * 0.75)
-    height = int(slide.shapes.height * 0.75)
+    # 获取幻灯片尺寸
+    width = int(Inches(slide.slide_width).px)
+    height = int(Inches(slide.slide_height).px)
     
     # 创建一个新的图像
     img = Image.new('RGB', (width, height), 'white')
@@ -96,8 +97,8 @@ def convert_ppt_to_pdf(input_file_path, compression_quality='medium'):
             # 设置PDF页面大小为PPT大小
             first_slide = prs.slides[0] if prs.slides else None
             if first_slide:
-                width = first_slide.shapes.width * 0.75 / 96 * 25.4  # 转换为毫米
-                height = first_slide.shapes.height * 0.75 / 96 * 25.4
+                width = Inches(prs.slide_width).inches * 25.4  # 转换为毫米
+                height = Inches(prs.slide_height).inches * 25.4
                 pdf.set_page_size((width, height))
             
             # 遍历所有幻灯片
