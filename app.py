@@ -105,11 +105,11 @@ def render_shape(shape, draw, offset_x=0, offset_y=0):
     except Exception as e:
         st.warning(f"渲染形状时出现警告: {str(e)}")
 
-def convert_slide_to_image(slide, progress_bar=None):
+def convert_slide_to_image(slide, presentation=None, progress_bar=None):
     """将PPT幻灯片转换为图像"""
     # 获取幻灯片尺寸
-    width = int(Inches(slide.slide_width).px)
-    height = int(Inches(slide.slide_height).px)
+    width = int(presentation.slide_width * 0.75)  # 转换 EMU 到像素 (默认 EMU 到像素的转换比例约为 0.75)
+    height = int(presentation.slide_height * 0.75)
     
     # 创建一个新的图像
     img = Image.new('RGB', (width, height), 'white')
@@ -138,9 +138,9 @@ def convert_ppt_to_pdf(input_file_path, compression_quality='medium'):
             # 创建PDF文档
             pdf = FPDF(orientation='L' if prs.slide_width > prs.slide_height else 'P')
             
-            # 设置PDF页面大小
-            width_mm = Inches(prs.slide_width).inches * 25.4  # 转换为毫米
-            height_mm = Inches(prs.slide_height).inches * 25.4
+            # 设置PDF页面大小（从EMU转换为毫米）
+            width_mm = prs.slide_width * 0.75 / 96 * 25.4  # EMU -> 像素 -> 英寸 -> 毫米
+            height_mm = prs.slide_height * 0.75 / 96 * 25.4
             pdf.add_page(format=(width_mm, height_mm))
             
             # 创建进度条
@@ -154,7 +154,7 @@ def convert_ppt_to_pdf(input_file_path, compression_quality='medium'):
                 status_text.text(f"正在处理第 {i+1}/{total_slides} 页...")
                 
                 # 将幻灯片转换为图像
-                img = convert_slide_to_image(slide)
+                img = convert_slide_to_image(slide, presentation=prs)
                 
                 # 保存图像
                 img_path = os.path.join(temp_dir, f'slide_{i}.png')
