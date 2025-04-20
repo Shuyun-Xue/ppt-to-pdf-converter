@@ -11,8 +11,9 @@ import hashlib
 import time
 
 # 常量定义
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_FILE_SIZE = 200 * 1024 * 1024  # 200MB
 CACHE_DIR = "cache"
+CHUNK_SIZE = 8 * 1024 * 1024  # 8MB 分块大小
 
 # 创建缓存目录
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -21,6 +22,27 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 def get_file_hash(file_bytes):
     """计算文件哈希值用于缓存"""
     return hashlib.md5(file_bytes).hexdigest()
+
+def format_size(size_bytes):
+    """格式化文件大小显示"""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_bytes < 1024.0:
+            return f"{size_bytes:.1f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.1f} GB"
+
+def save_uploaded_file(uploaded_file, target_path, progress_bar=None):
+    """分块保存上传的文件，显示进度"""
+    file_size = len(uploaded_file.getvalue())
+    with open(target_path, 'wb') as f:
+        bytes_data = uploaded_file.getvalue()
+        total_chunks = (file_size + CHUNK_SIZE - 1) // CHUNK_SIZE
+        
+        for i in range(0, file_size, CHUNK_SIZE):
+            chunk = bytes_data[i:i + CHUNK_SIZE]
+            f.write(chunk)
+            if progress_bar:
+                progress_bar.progress((i + len(chunk)) / file_size)
 
 def compress_pdf(input_path, quality='medium', progress_bar=None):
     """压缩PDF文件
@@ -191,7 +213,8 @@ def main():
     
     注意：
     - 当前版本支持基本的文本和形状转换
-    - 文件大小限制为10MB
+    - 文件大小限制为200MB
+    - 大文件处理可能需要较长时间
     - 复杂的动画效果和某些特殊格式可能无法完全保留
     """)
     
@@ -213,11 +236,11 @@ def main():
         # 检查文件大小
         file_size = len(uploaded_file.getvalue())
         if file_size > MAX_FILE_SIZE:
-            st.error(f"文件太大！请上传小于 {MAX_FILE_SIZE/1024/1024:.1f}MB 的文件")
+            st.error(f"文件太大！请上传小于 {format_size(MAX_FILE_SIZE)} 的文件（当前文件大小：{format_size(file_size)}）")
             return
             
         # 显示文件信息
-        st.info(f"文件名: {uploaded_file.name}\n大小: {file_size/1024:.1f}KB")
+        st.info(f"文件名: {uploaded_file.name}\n大小: {format_size(file_size)}")
         
         # 检查缓存
         file_hash = get_file_hash(uploaded_file.getvalue())
@@ -227,11 +250,20 @@ def main():
             st.success("找到缓存文件！")
             with open(cache_path, 'rb') as pdf_file:
                 pdf_data = pdf_file.read()
+                st.download_button(
+                    label="下载PDF文件",
+                    data=pdf_data,
+                    file_name=os.path.splitext(uploaded_file.name)[0] + '.pdf',
+                    mime='application/pdf'
+                )
         else:
             if st.button("转换为PDF"):
                 # 创建临时文件来保存上传的PPT
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
-                    tmp_file.write(uploaded_file.getvalue())
+                    with st.spinner('正在保存上传的文件...'):
+                        progress_bar = st.progress(0)
+                        save_uploaded_file(uploaded_file, tmp_file.name, progress_bar)
+                        progress_bar.empty()
                     input_path = tmp_file.name
                 
                 with st.spinner('正在转换中...'):
@@ -250,11 +282,20 @@ def main():
                             cache_file.write(pdf_data)
                         
                         # 获取文件大小和处理时间
-                        file_size = len(pdf_data) / 1024  # 转换为KB
+                        output_size = len(pdf_data)
                         process_time = time.time() - start_time
                         
+                        # 计算压缩比
+                        compression_ratio = (1 - output_size / file_size) * 100
+                        
                         # 提供下载链接
-                        st.success(f"转换成功！\n处理时间: {process_time:.1f}秒\n文件大小: {file_size:.1f}KB")
+                        st.success(
+                            f"转换成功！\n"
+                            f"处理时间: {process_time:.1f}秒\n"
+                            f"原始大小: {format_size(file_size)}\n"
+                            f"转换后大小: {format_size(output_size)}\n"
+                            f"压缩比: {compression_ratio:.1f}%"
+                        )
                         st.download_button(
                             label="下载PDF文件",
                             data=pdf_data,
